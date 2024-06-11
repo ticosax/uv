@@ -37,6 +37,9 @@ pub struct Options {
     pub no_cache: Option<bool>,
     pub preview: Option<bool>,
     pub cache_dir: Option<PathBuf>,
+    pub concurrent_downloads: Option<NonZeroUsize>,
+    pub concurrent_builds: Option<NonZeroUsize>,
+    pub concurrent_installs: Option<NonZeroUsize>,
     pub pip: Option<PipOptions>,
     #[cfg_attr(
         feature = "schemars",
@@ -95,7 +98,4 @@ pub struct PipOptions {
     pub link_mode: Option<LinkMode>,
     pub compile_bytecode: Option<bool>,
     pub require_hashes: Option<bool>,
-    pub concurrent_downloads: Option<NonZeroUsize>,
-    pub concurrent_builds: Option<NonZeroUsize>,
-    pub concurrent_installs: Option<NonZeroUsize>,
 }

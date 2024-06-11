@@ -10,6 +10,30 @@
         "null"
       ]
     },
+    "concurrent-builds": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint",
+      "minimum": 1.0
+    },
+    "concurrent-downloads": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint",
+      "minimum": 1.0
+    },
+    "concurrent-installs": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint",
+      "minimum": 1.0
+    },
     "dev-dependencies": {
       "description": "PEP 508-style requirements, e.g., `flask==3.0.0`, or `black @ https://...`.",
       "type": [
@@ -272,30 +296,6 @@
             "boolean",
             "null"
           ]
-        },
-        "concurrent-builds": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint",
-          "minimum": 1.0
-        },
-        "concurrent-downloads": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint",
-          "minimum": 1.0
-        },
-        "concurrent-installs": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint",
-          "minimum": 1.0
         },
         "config-settings": {
           "anyOf": [

@@ -37,6 +37,7 @@ pub(crate) struct GlobalSettings {
     pub(crate) native_tls: bool,
     pub(crate) connectivity: Connectivity,
     pub(crate) isolated: bool,
+    pub(crate) concurrency: Concurrency,
     pub(crate) preview: PreviewMode,
 }
 
@@ -75,6 +76,20 @@ impl GlobalSettings {
                 Connectivity::Online
             },
             isolated: args.isolated,
+            concurrency: Concurrency {
+                downloads: env(env::CONCURRENT_DOWNLOADS)
+                    .combine(workspace.and_then(|workspace| workspace.options.concurrent_downloads))
+                    .map(NonZeroUsize::get)
+                    .unwrap_or(Concurrency::DEFAULT_DOWNLOADS),
+                builds: env(env::CONCURRENT_BUILDS)
+                    .combine(workspace.and_then(|workspace| workspace.options.concurrent_builds))
+                    .map(NonZeroUsize::get)
+                    .unwrap_or_else(Concurrency::threads),
+                installs: env(env::CONCURRENT_INSTALLS)
+                    .combine(workspace.and_then(|workspace| workspace.options.concurrent_installs))
+                    .map(NonZeroUsize::get)
+                    .unwrap_or_else(Concurrency::threads),
+            },
             preview: PreviewMode::from(
                 flag(args.preview, args.no_preview)
                     .combine(workspace.and_then(|workspace| workspace.options.preview))
@@ -589,9 +604,6 @@ impl PipCompileSettings {
                     emit_index_annotation: flag(emit_index_annotation, no_emit_index_annotation),
                     annotation_style,
                     link_mode,
-                    concurrent_builds: env(env::CONCURRENT_BUILDS),
-                    concurrent_downloads: env(env::CONCURRENT_DOWNLOADS),
-                    concurrent_installs: env(env::CONCURRENT_INSTALLS),
                     ..PipOptions::default()
                 },
                 workspace,
@@ -705,9 +717,6 @@ impl PipSyncSettings {
                     link_mode,
                     compile_bytecode: flag(compile_bytecode, no_compile_bytecode),
                     require_hashes: flag(require_hashes, no_require_hashes),
-                    concurrent_builds: env(env::CONCURRENT_BUILDS),
-                    concurrent_downloads: env(env::CONCURRENT_DOWNLOADS),
-                    concurrent_installs: env(env::CONCURRENT_INSTALLS),
                     ..PipOptions::default()
                 },
                 workspace,
@@ -869,9 +878,6 @@ impl PipInstallSettings {
                     link_mode,
                     compile_bytecode: flag(compile_bytecode, no_compile_bytecode),
                     require_hashes: flag(require_hashes, no_require_hashes),
-                    concurrent_builds: env(env::CONCURRENT_BUILDS),
-                    concurrent_downloads: env(env::CONCURRENT_DOWNLOADS),
-                    concurrent_installs: env(env::CONCURRENT_INSTALLS),
                     ..PipOptions::default()
                 },
                 workspace,
@@ -1208,7 +1214,6 @@ pub(crate) struct PipSharedSettings {
     pub(crate) link_mode: LinkMode,
     pub(crate) compile_bytecode: bool,
     pub(crate) require_hashes: bool,
-    pub(crate) concurrency: Concurrency,
 }
 
 impl PipSharedSettings {
@@ -1256,9 +1261,6 @@ impl PipSharedSettings {
             link_mode,
             compile_bytecode,
             require_hashes,
-            concurrent_builds,
-            concurrent_downloads,
-            concurrent_installs,
         } = workspace
             .and_then(|workspace| workspace.options.pip)
             .unwrap_or_default();
@@ -1370,23 +1372,6 @@ impl PipSharedSettings {
                 .combine(compile_bytecode)
                 .unwrap_or_default(),
             strict: args.strict.combine(strict).unwrap_or_default(),
-            concurrency: Concurrency {
-                downloads: args
-                    .concurrent_downloads
-                    .combine(concurrent_downloads)
-                    .map(NonZeroUsize::get)
-                    .unwrap_or(Concurrency::DEFAULT_DOWNLOADS),
-                builds: args
-                    .concurrent_builds
-                    .combine(concurrent_builds)
-                    .map(NonZeroUsize::get)
-                    .unwrap_or_else(Concurrency::threads),
-                installs: args
-                    .concurrent_installs
-                    .combine(concurrent_installs)
-                    .map(NonZeroUsize::get)
-                    .unwrap_or_else(Concurrency::threads),
-            },
         }
     }
 }

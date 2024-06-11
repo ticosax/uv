@@ -45,6 +45,11 @@ impl Combine for Options {
             offline: self.offline.combine(other.offline),
             no_cache: self.no_cache.combine(other.no_cache),
             preview: self.preview.combine(other.preview),
+            concurrent_downloads: self
+                .concurrent_downloads
+                .combine(other.concurrent_downloads),
+            concurrent_builds: self.concurrent_builds.combine(other.concurrent_builds),
+            concurrent_installs: self.concurrent_installs.combine(other.concurrent_installs),
             cache_dir: self.cache_dir.combine(other.cache_dir),
             pip: self.pip.combine(other.pip),
             override_dependencies: self
@@ -115,11 +120,6 @@ impl Combine for PipOptions {
             link_mode: self.link_mode.combine(other.link_mode),
             compile_bytecode: self.compile_bytecode.combine(other.compile_bytecode),
             require_hashes: self.require_hashes.combine(other.require_hashes),
-            concurrent_downloads: self
-                .concurrent_downloads
-                .combine(other.concurrent_downloads),
-            concurrent_builds: self.concurrent_builds.combine(other.concurrent_builds),
-            concurrent_installs: self.concurrent_installs.combine(other.concurrent_installs),
         }
     }
 }

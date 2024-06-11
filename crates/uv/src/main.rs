@@ -185,7 +185,7 @@ async fn run() -> Result<ExitStatus> {
             // Resolve the settings from the command-line arguments and workspace configuration.
             let args = PipCompileSettings::resolve(args, workspace);
             rayon::ThreadPoolBuilder::new()
-                .num_threads(args.shared.concurrency.installs)
+                .num_threads(globals.concurrency.installs)
                 .build_global()
                 .expect("failed to initialize global rayon pool");
 
@@ -244,7 +244,7 @@ async fn run() -> Result<ExitStatus> {
                 args.shared.link_mode,
                 args.shared.python,
                 args.shared.system,
-                args.shared.concurrency,
+                globals.concurrency,
                 globals.native_tls,
                 globals.quiet,
                 globals.preview,
@@ -261,7 +261,7 @@ async fn run() -> Result<ExitStatus> {
             // Resolve the settings from the command-line arguments and workspace configuration.
             let args = PipSyncSettings::resolve(args, workspace);
             rayon::ThreadPoolBuilder::new()
-                .num_threads(args.shared.concurrency.installs)
+                .num_threads(globals.concurrency.installs)
                 .build_global()
                 .expect("failed to initialize global rayon pool");
 
@@ -304,7 +304,7 @@ async fn run() -> Result<ExitStatus> {
                 args.shared.break_system_packages,
                 args.shared.target,
                 args.shared.prefix,
-                args.shared.concurrency,
+                globals.concurrency,
                 globals.native_tls,
                 globals.preview,
                 cache,
@@ -321,7 +321,7 @@ async fn run() -> Result<ExitStatus> {
             // Resolve the settings from the command-line arguments and workspace configuration.
             let args = PipInstallSettings::resolve(args, workspace);
             rayon::ThreadPoolBuilder::new()
-                .num_threads(args.shared.concurrency.installs)
+                .num_threads(globals.concurrency.installs)
                 .build_global()
                 .expect("failed to initialize global rayon pool");
 
@@ -381,7 +381,7 @@ async fn run() -> Result<ExitStatus> {
                 args.shared.break_system_packages,
                 args.shared.target,
                 args.shared.prefix,
-                args.shared.concurrency,
+                globals.concurrency,
                 globals.native_tls,
                 globals.preview,
                 cache,
