@@ -1,7 +1,3 @@
-// Temporarily allowed because this module is still in a state of flux
-// as we build out universal locking.
-#![allow(dead_code, unreachable_code, unused_variables)]
-
 use std::borrow::Cow;
 use std::collections::{BTreeMap, VecDeque};
 use std::fmt::{Debug, Display};
@@ -438,7 +434,7 @@ impl TryFrom<LockWire> for Lock {
             }
 
             // Perform the same validation for optional dependencies.
-            for (extra, dependencies) in &dist.optional_dependencies {
+            for (_extra, dependencies) in &dist.optional_dependencies {
                 for dep in dependencies {
                     if let Some(index) = by_id.get(&dep.distribution_id) {
                         let dep_dist = &wire.distributions[*index];
@@ -463,7 +459,7 @@ impl TryFrom<LockWire> for Lock {
             }
 
             // Perform the same validation for dev dependencies.
-            for (group, dependencies) in &dist.dev_dependencies {
+            for (_group, dependencies) in &dist.dev_dependencies {
                 for dep in dependencies {
                     if let Some(index) = by_id.get(&dep.distribution_id) {
                         let dep_dist = &wire.distributions[*index];
@@ -588,11 +584,11 @@ impl Distribution {
     fn to_dist(&self, workspace_root: &Path, tags: &Tags) -> Result<Dist, LockError> {
         if let Some(best_wheel_index) = self.find_best_wheel(tags) {
             return match &self.id.source {
-                Source::Registry(url) => {
+                SourceId::Registry(url) => {
                     let wheels = self
                         .wheels
                         .iter()
-                        .map(|wheel| wheel.to_registry_dist(url, &self.id.source))
+                        .map(|wheel| wheel.to_registry_dist(url))
                         .collect();
                     let reg_built_dist = RegistryBuiltDist {
                         wheels,
@@ -601,7 +597,7 @@ impl Distribution {
                     };
                     Ok(Dist::Built(BuiltDist::Registry(reg_built_dist)))
                 }
-                Source::Path(path) => {
+                SourceId::Path(path) => {
                     let filename: WheelFilename = self.wheels[best_wheel_index].filename.clone();
                     let path_dist = PathBuiltDist {
                         filename,
@@ -616,7 +612,7 @@ impl Distribution {
                     let built_dist = BuiltDist::Path(path_dist);
                     Ok(Dist::Built(built_dist))
                 }
-                Source::Direct(url, direct) => {
+                SourceId::Direct(url, direct) => {
                     let filename: WheelFilename = self.wheels[best_wheel_index].filename.clone();
                     let url = Url::from(ParsedArchiveUrl {
                         url: url.clone(),
@@ -630,17 +626,17 @@ impl Distribution {
                     let built_dist = BuiltDist::DirectUrl(direct_dist);
                     Ok(Dist::Built(built_dist))
                 }
-                Source::Git(_, _) => Err(LockErrorKind::InvalidWheelSource {
+                SourceId::Git(_, _) => Err(LockErrorKind::InvalidWheelSource {
                     id: self.id.clone(),
                     source_type: "Git",
                 }
                 .into()),
-                Source::Directory(_) => Err(LockErrorKind::InvalidWheelSource {
+                SourceId::Directory(_) => Err(LockErrorKind::InvalidWheelSource {
                     id: self.id.clone(),
                     source_type: "directory",
                 }
                 .into()),
-                Source::Editable(_) => Err(LockErrorKind::InvalidWheelSource {
+                SourceId::Editable(_) => Err(LockErrorKind::InvalidWheelSource {
                     id: self.id.clone(),
                     source_type: "editable",
                 }
@@ -650,7 +646,7 @@ impl Distribution {
 
         if let Some(sdist) = &self.sdist {
             return match &self.id.source {
-                Source::Path(path) => {
+                SourceId::Path(path) => {
                     let path_dist = PathSourceDist {
                         name: self.id.name.clone(),
                         url: VerbatimUrl::from_path(workspace_root.join(path)).map_err(|err| {
@@ -665,7 +661,7 @@ impl Distribution {
                     let source_dist = distribution_types::SourceDist::Path(path_dist);
                     Ok(Dist::Source(source_dist))
                 }
-                Source::Directory(path) => {
+                SourceId::Directory(path) => {
                     let dir_dist = DirectorySourceDist {
                         name: self.id.name.clone(),
                         url: VerbatimUrl::from_path(workspace_root.join(path)).map_err(|err| {
@@ -681,7 +677,7 @@ impl Distribution {
                     let source_dist = distribution_types::SourceDist::Directory(dir_dist);
                     Ok(Dist::Source(source_dist))
                 }
-                Source::Editable(path) => {
+                SourceId::Editable(path) => {
                     let dir_dist = DirectorySourceDist {
                         name: self.id.name.clone(),
                         url: VerbatimUrl::from_path(workspace_root.join(path)).map_err(|err| {
@@ -697,7 +693,7 @@ impl Distribution {
                     let source_dist = distribution_types::SourceDist::Directory(dir_dist);
                     Ok(Dist::Source(source_dist))
                 }
-                Source::Git(url, git) => {
+                SourceId::Git(url, git) => {
                     // Reconstruct the `GitUrl` from the `GitSource`.
                     let git_url =
                         uv_git::GitUrl::new(url.clone(), GitReference::from(git.kind.clone()))
@@ -718,7 +714,7 @@ impl Distribution {
                     let source_dist = distribution_types::SourceDist::Git(git_dist);
                     Ok(Dist::Source(source_dist))
                 }
-                Source::Direct(url, direct) => {
+                SourceId::Direct(url, direct) => {
                     let url = Url::from(ParsedArchiveUrl {
                         url: url.clone(),
                         subdirectory: direct.subdirectory.as_ref().map(PathBuf::from),
@@ -732,7 +728,7 @@ impl Distribution {
                     let source_dist = distribution_types::SourceDist::DirectUrl(direct_dist);
                     Ok(Dist::Source(source_dist))
                 }
-                Source::Registry(url) => {
+                SourceId::Registry(url) => {
                     let file = Box::new(distribution_types::File {
                         dist_info_metadata: false,
                         filename: sdist.filename().unwrap().to_string(),
@@ -791,7 +787,7 @@ impl Distribution {
     /// Returns the [`ResolvedRepositoryReference`] for the distribution, if it is a Git source.
     pub fn as_git_ref(&self) -> Option<ResolvedRepositoryReference> {
         match &self.id.source {
-            Source::Git(url, git) => Some(ResolvedRepositoryReference {
+            SourceId::Git(url, git) => Some(ResolvedRepositoryReference {
                 reference: RepositoryReference {
                     url: RepositoryUrl::new(url),
                     reference: GitReference::from(git.kind.clone()),
@@ -803,18 +799,20 @@ impl Distribution {
     }
 }
 
+/// Inside the lockfile, we match a dependency entry to a distribution entry through a key made up
+/// of the name, the version and the source url.
 #[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, serde::Deserialize)]
 pub(crate) struct DistributionId {
     pub(crate) name: PackageName,
     pub(crate) version: Version,
-    source: Source,
+    source: SourceId,
 }
 
 impl DistributionId {
     fn from_annotated_dist(annotated_dist: &AnnotatedDist) -> DistributionId {
         let name = annotated_dist.metadata.name.clone();
         let version = annotated_dist.metadata.version.clone();
-        let source = Source::from_resolved_dist(&annotated_dist.dist);
+        let source = SourceId::from_resolved_dist(&annotated_dist.dist);
         DistributionId {
             name,
             version,
@@ -829,12 +827,15 @@ impl std::fmt::Display for DistributionId {
     }
 }
 
+/// A unique identifier to differentiate between different distributions for the same version of a
+/// package.
+///
 /// NOTE: Care should be taken when adding variants to this enum. Namely, new
 /// variants should be added without changing the relative ordering of other
 /// variants. Otherwise, this could cause the lock file to have a different
 /// canonical ordering of distributions.
 #[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
-enum Source {
+enum SourceId {
     Registry(Url),
     Git(Url, GitSource),
     Direct(Url, DirectSource),
@@ -853,66 +854,66 @@ fn serialize_path_with_dot(path: &Path) -> Cow<str> {
     }
 }
 
-impl Source {
-    fn from_resolved_dist(resolved_dist: &ResolvedDist) -> Source {
+impl SourceId {
+    fn from_resolved_dist(resolved_dist: &ResolvedDist) -> SourceId {
         match *resolved_dist {
             // TODO: Do we want to try to lock already-installed distributions?
             // Or should we return an error?
             ResolvedDist::Installed(_) => todo!(),
-            ResolvedDist::Installable(ref dist) => Source::from_dist(dist),
+            ResolvedDist::Installable(ref dist) => SourceId::from_dist(dist),
         }
     }
 
-    fn from_dist(dist: &Dist) -> Source {
+    fn from_dist(dist: &Dist) -> SourceId {
         match *dist {
-            Dist::Built(ref built_dist) => Source::from_built_dist(built_dist),
-            Dist::Source(ref source_dist) => Source::from_source_dist(source_dist),
+            Dist::Built(ref built_dist) => SourceId::from_built_dist(built_dist),
+            Dist::Source(ref source_dist) => SourceId::from_source_dist(source_dist),
         }
     }
 
-    fn from_built_dist(built_dist: &BuiltDist) -> Source {
+    fn from_built_dist(built_dist: &BuiltDist) -> SourceId {
         match *built_dist {
-            BuiltDist::Registry(ref reg_dist) => Source::from_registry_built_dist(reg_dist),
-            BuiltDist::DirectUrl(ref direct_dist) => Source::from_direct_built_dist(direct_dist),
-            BuiltDist::Path(ref path_dist) => Source::from_path_built_dist(path_dist),
+            BuiltDist::Registry(ref reg_dist) => SourceId::from_registry_built_dist(reg_dist),
+            BuiltDist::DirectUrl(ref direct_dist) => SourceId::from_direct_built_dist(direct_dist),
+            BuiltDist::Path(ref path_dist) => SourceId::from_path_built_dist(path_dist),
         }
     }
 
-    fn from_source_dist(source_dist: &distribution_types::SourceDist) -> Source {
+    fn from_source_dist(source_dist: &distribution_types::SourceDist) -> SourceId {
         match *source_dist {
             distribution_types::SourceDist::Registry(ref reg_dist) => {
-                Source::from_registry_source_dist(reg_dist)
+                SourceId::from_registry_source_dist(reg_dist)
             }
             distribution_types::SourceDist::DirectUrl(ref direct_dist) => {
-                Source::from_direct_source_dist(direct_dist)
+                SourceId::from_direct_source_dist(direct_dist)
             }
-            distribution_types::SourceDist::Git(ref git_dist) => Source::from_git_dist(git_dist),
+            distribution_types::SourceDist::Git(ref git_dist) => SourceId::from_git_dist(git_dist),
             distribution_types::SourceDist::Path(ref path_dist) => {
-                Source::from_path_source_dist(path_dist)
+                SourceId::from_path_source_dist(path_dist)
             }
             distribution_types::SourceDist::Directory(ref directory) => {
-                Source::from_directory_source_dist(directory)
+                SourceId::from_directory_source_dist(directory)
             }
         }
     }
 
-    fn from_registry_built_dist(reg_dist: &RegistryBuiltDist) -> Source {
-        Source::from_index_url(&reg_dist.best_wheel().index)
+    fn from_registry_built_dist(reg_dist: &RegistryBuiltDist) -> SourceId {
+        SourceId::from_index_url(&reg_dist.best_wheel().index)
     }
 
-    fn from_registry_source_dist(reg_dist: &RegistrySourceDist) -> Source {
-        Source::from_index_url(&reg_dist.index)
+    fn from_registry_source_dist(reg_dist: &RegistrySourceDist) -> SourceId {
+        SourceId::from_index_url(&reg_dist.index)
     }
 
-    fn from_direct_built_dist(direct_dist: &DirectUrlBuiltDist) -> Source {
-        Source::Direct(
+    fn from_direct_built_dist(direct_dist: &DirectUrlBuiltDist) -> SourceId {
+        SourceId::Direct(
             direct_dist.url.to_url(),
             DirectSource { subdirectory: None },
         )
     }
 
-    fn from_direct_source_dist(direct_dist: &DirectUrlSourceDist) -> Source {
-        Source::Direct(
+    fn from_direct_source_dist(direct_dist: &DirectUrlSourceDist) -> SourceId {
+        SourceId::Direct(
             direct_dist.url.to_url(),
             DirectSource {
                 subdirectory: direct_dist
@@ -924,28 +925,28 @@ impl Source {
         )
     }
 
-    fn from_path_built_dist(path_dist: &PathBuiltDist) -> Source {
-        Source::Path(path_dist.path.clone())
+    fn from_path_built_dist(path_dist: &PathBuiltDist) -> SourceId {
+        SourceId::Path(path_dist.path.clone())
     }
 
-    fn from_path_source_dist(path_dist: &PathSourceDist) -> Source {
-        Source::Path(path_dist.install_path.clone())
+    fn from_path_source_dist(path_dist: &PathSourceDist) -> SourceId {
+        SourceId::Path(path_dist.install_path.clone())
     }
 
-    fn from_directory_source_dist(directory_dist: &DirectorySourceDist) -> Source {
+    fn from_directory_source_dist(directory_dist: &DirectorySourceDist) -> SourceId {
         if directory_dist.editable {
-            Source::Editable(directory_dist.lock_path.clone())
+            SourceId::Editable(directory_dist.lock_path.clone())
         } else {
-            Source::Directory(directory_dist.lock_path.clone())
+            SourceId::Directory(directory_dist.lock_path.clone())
         }
     }
 
-    fn from_index_url(index_url: &IndexUrl) -> Source {
+    fn from_index_url(index_url: &IndexUrl) -> SourceId {
         match *index_url {
-            IndexUrl::Pypi(ref verbatim_url) => Source::Registry(verbatim_url.to_url()),
-            IndexUrl::Url(ref verbatim_url) => Source::Registry(verbatim_url.to_url()),
+            IndexUrl::Pypi(ref verbatim_url) => SourceId::Registry(verbatim_url.to_url()),
+            IndexUrl::Url(ref verbatim_url) => SourceId::Registry(verbatim_url.to_url()),
             // TODO(konsti): Retain path on index url without converting to URL.
-            IndexUrl::Path(ref verbatim_url) => Source::Path(
+            IndexUrl::Path(ref verbatim_url) => SourceId::Path(
                 verbatim_url
                     .to_file_path()
                     .expect("Could not convert index url to path"),
@@ -953,8 +954,8 @@ impl Source {
         }
     }
 
-    fn from_git_dist(git_dist: &GitSourceDist) -> Source {
-        Source::Git(
+    fn from_git_dist(git_dist: &GitSourceDist) -> SourceId {
+        SourceId::Git(
             locked_git_url(git_dist),
             GitSource {
                 kind: GitSourceKind::from(git_dist.git.reference().clone()),
@@ -969,10 +970,10 @@ impl Source {
     }
 }
 
-impl std::str::FromStr for Source {
+impl std::str::FromStr for SourceId {
     type Err = SourceParseError;
 
-    fn from_str(s: &str) -> Result<Source, SourceParseError> {
+    fn from_str(s: &str) -> Result<SourceId, SourceParseError> {
         let (kind, url_or_path) = s.split_once('+').ok_or_else(|| SourceParseError::NoPlus {
             given: s.to_string(),
         })?;
@@ -982,7 +983,7 @@ impl std::str::FromStr for Source {
                     given: s.to_string(),
                     err,
                 })?;
-                Ok(Source::Registry(url))
+                Ok(SourceId::Registry(url))
             }
             "git" => {
                 let mut url =
@@ -998,7 +999,7 @@ impl std::str::FromStr for Source {
                         given: s.to_string(),
                     },
                 })?;
-                Ok(Source::Git(url, git_source))
+                Ok(SourceId::Git(url, git_source))
             }
             "direct" => {
                 let mut url =
@@ -1007,11 +1008,11 @@ impl std::str::FromStr for Source {
                         err,
                     })?;
                 let direct_source = DirectSource::from_url(&mut url);
-                Ok(Source::Direct(url, direct_source))
+                Ok(SourceId::Direct(url, direct_source))
             }
-            "path" => Ok(Source::Path(PathBuf::from(url_or_path))),
-            "directory" => Ok(Source::Directory(PathBuf::from(url_or_path))),
-            "editable" => Ok(Source::Editable(PathBuf::from(url_or_path))),
+            "path" => Ok(SourceId::Path(PathBuf::from(url_or_path))),
+            "directory" => Ok(SourceId::Directory(PathBuf::from(url_or_path))),
+            "editable" => Ok(SourceId::Editable(PathBuf::from(url_or_path))),
             name => Err(SourceParseError::UnrecognizedSourceName {
                 given: s.to_string(),
                 name: name.to_string(),
@@ -1020,21 +1021,21 @@ impl std::str::FromStr for Source {
     }
 }
 
-impl std::fmt::Display for Source {
+impl std::fmt::Display for SourceId {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Source::Registry(url) | Source::Git(url, _) | Source::Direct(url, _) => {
+            SourceId::Registry(url) | SourceId::Git(url, _) | SourceId::Direct(url, _) => {
                 write!(f, "{}+{}", self.name(), url)
             }
-            Source::Path(path) | Source::Directory(path) | Source::Editable(path) => {
+            SourceId::Path(path) | SourceId::Directory(path) | SourceId::Editable(path) => {
                 write!(f, "{}+{}", self.name(), serialize_path_with_dot(path))
             }
         }
     }
 }
 
-impl<'de> serde::Deserialize<'de> for Source {
-    fn deserialize<D>(d: D) -> Result<Source, D::Error>
+impl<'de> serde::Deserialize<'de> for SourceId {
+    fn deserialize<D>(d: D) -> Result<SourceId, D::Error>
     where
         D: serde::de::Deserializer<'de>,
     {
@@ -1043,7 +1044,7 @@ impl<'de> serde::Deserialize<'de> for Source {
     }
 }
 
-impl Source {
+impl SourceId {
     fn name(&self) -> &str {
         match *self {
             Self::Registry(..) => "registry",
@@ -1532,7 +1533,7 @@ impl Wheel {
         }
     }
 
-    fn to_registry_dist(&self, url: &Url, source: &Source) -> RegistryBuiltWheel {
+    fn to_registry_dist(&self, url: &Url) -> RegistryBuiltWheel {
         let filename: WheelFilename = self.filename.clone();
         let file = Box::new(distribution_types::File {
             dist_info_metadata: false,
