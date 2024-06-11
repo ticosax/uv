@@ -1,3 +1,4 @@
+use pep440_rs::Version;
 use tracing::{debug, info};
 use uv_client::BaseClientBuilder;
 use uv_configuration::PreviewMode;
@@ -10,6 +11,7 @@ use crate::discovery::{
 };
 use crate::downloads::{DownloadResult, PythonDownload, PythonDownloadRequest};
 use crate::managed::{InstalledToolchain, InstalledToolchains};
+use crate::platform::{Libc, Os};
 use crate::{Error, Interpreter, ToolchainSource};
 
 /// A Python interpreter and accompanying tools.
@@ -21,6 +23,15 @@ pub struct Toolchain {
 }
 
 impl Toolchain {
+    /// Create a new [`Toolchain`] from a source, interpreter tuple.
+    pub(crate) fn from_tuple(tuple: (ToolchainSource, Interpreter)) -> Self {
+        let (source, interpreter) = tuple;
+        Self {
+            source,
+            interpreter,
+        }
+    }
+
     /// Find an installed [`Toolchain`].
     ///
     /// This is the standard interface for discovering a Python toolchain for use with uv.
@@ -186,6 +197,45 @@ impl Toolchain {
 
     pub fn interpreter(&self) -> &Interpreter {
         &self.interpreter
+    }
+
+    pub fn python_version(&self) -> &Version {
+        self.interpreter.python_version()
+    }
+
+    pub fn key(&self) -> String {
+        // TODO(zanieb): Determine libc
+        format!(
+            "{}-{}-{}-{}-{}",
+            self.interpreter.implementation_name(),
+            self.python_version(),
+            self.interpreter.platform().os(),
+            self.interpreter.platform().arch(),
+            self.libc()
+        )
+        .to_ascii_lowercase()
+    }
+
+    pub fn libc(&self) -> &Libc {
+        match self.interpreter.platform().os() {
+            platform_tags::Os::Manylinux { .. } => &Libc::Gnu,
+            platform_tags::Os::Musllinux { .. } => &Libc::Musl,
+            _ => &Libc::None,
+        }
+    }
+
+    pub fn os(&self) -> &Os {
+        match self.interpreter.platform().os() {
+            platform_tags::Os::Dragonfly { .. } => &Os::Dragonfly,
+            platform_tags::Os::FreeBsd { .. } => &Os::FreeBsd,
+            platform_tags::Os::Haiku { .. } => &Os::Haiku,
+            platform_tags::Os::Illumos { .. } => &Os::Illumos,
+            platform_tags::Os::Macos { .. } => &Os::Macos,
+            platform_tags::Os::Manylinux { .. } | platform_tags::Os::Musllinux { .. } => &Os::Linux,
+            platform_tags::Os::NetBsd { .. } => &Os::NetBsd,
+            platform_tags::Os::OpenBsd { .. } => &Os::OpenBsd,
+            platform_tags::Os::Windows => &Os::Windows,
+        }
     }
 
     pub fn into_interpreter(self) -> Interpreter {
