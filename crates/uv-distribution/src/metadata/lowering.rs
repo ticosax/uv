@@ -10,7 +10,7 @@ use pep440_rs::VersionSpecifiers;
 use pep508_rs::{VerbatimUrl, VersionOrUrl};
 use pypi_types::{Requirement, RequirementSource, VerbatimParsedUrl};
 use uv_configuration::PreviewMode;
-use uv_fs::Simplified;
+use uv_fs::{relative_to, Simplified};
 use uv_git::GitReference;
 use uv_normalize::PackageName;
 use uv_warnings::warn_user_once;
@@ -42,6 +42,8 @@ pub enum LoweringError {
     WorkspaceFalse,
     #[error("`tool.uv.sources` is a preview feature; use `--preview` or set `UV_PREVIEW=1` to enable it")]
     MissingPreview,
+    #[error(transparent)] // Function attaches the context
+    RelativeTo(io::Error),
 }
 
 /// Combine `project.dependencies` or `project.optional-dependencies` with `tool.uv.sources`.
@@ -234,17 +236,23 @@ fn path_source(
 ) -> Result<RequirementSource, LoweringError> {
     let url = VerbatimUrl::parse_path(path.as_ref(), project_dir)?
         .with_given(path.as_ref().to_string_lossy());
-    let path_buf = path.as_ref().to_path_buf();
-    let path_buf = path_buf
+    let absolute_path = path
+        .as_ref()
+        .to_path_buf()
         .absolutize_from(project_dir)
         .map_err(|err| LoweringError::Absolutize(path.as_ref().to_path_buf(), err))?
         .to_path_buf();
-    let ascend_to_workspace = project_dir
-        .strip_prefix(workspace_root)
-        .expect("Project must be below workspace root");
+    let relative_to_workspace = if path.as_ref().is_relative() {
+        // Relative paths in a project are relative to the project root, but the lockfile is
+        // relative to the workspace root.
+        relative_to(&absolute_path, workspace_root).map_err(LoweringError::RelativeTo)?
+    } else {
+        // If the user gave us an absolute path, we respect that.
+        path.as_ref().to_path_buf()
+    };
     Ok(RequirementSource::Path {
-        install_path: path_buf,
-        lock_path: ascend_to_workspace.join(project_dir),
+        install_path: absolute_path,
+        lock_path: relative_to_workspace,
         url,
         editable,
     })
